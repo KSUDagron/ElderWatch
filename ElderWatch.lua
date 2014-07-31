@@ -10,6 +10,8 @@ require "Window"
 -----------------------------------------------------------------------------------------------
 local ElderWatch = {}
 local ElderWatchInst = nil
+local nWidth = 390
+local nHeight = 53
  
 -----------------------------------------------------------------------------------------------
 -- Constants
@@ -22,7 +24,10 @@ local ElderWatchInst = nil
 function ElderWatch:new(o)
     o = o or {}
     setmetatable(o, self)
-    self.__index = self 
+    self.__index = self
+
+	self.location = {}
+	self.location.options = { 200, 200, 200 + nWidth, 200 + nHeight}
 
     return o
 end
@@ -30,9 +35,7 @@ end
 function ElderWatch:Init()
 	local bHasConfigureFunction = false
 	local strConfigureButtonText = ""
-	local tDependencies = {
-		-- "UnitOrPackageName",
-	}
+	local tDependencies = { }
     Apollo.RegisterAddon(self, bHasConfigureFunction, strConfigureButtonText, tDependencies)
 end
  
@@ -45,6 +48,25 @@ function ElderWatch:OnLoad()
 	self.xmlDoc:RegisterCallback("OnDocLoaded", self)
 end
 
+function ElderWatch:OnSave(saveDepth)
+	if saveDepth ~= GameLib.CodeEnumAddonSaveLevel.Character then return nil end
+	
+	local savedVariables = {}	
+	local nLeft, nTop, nRight, nBottom = self.wndWatch:GetAnchorOffsets()
+	savedVariables.location = { nLeft, nTop, nLeft + nWidth, nTop + nHeight}
+		
+	return savedVariables
+end
+
+function ElderWatch:OnRestore(saveDepth, savedVariables)
+	if saveDepth ~= GameLib.CodeEnumAddonSaveLevel.Character then return end
+	if savedVariables == {} or savedVariables == nil then return end
+
+	if savedVariables.location ~= nil then
+		self.location = savedVariables.location
+	end
+end
+
 -----------------------------------------------------------------------------------------------
 -- ElderWatch OnDocLoaded
 -----------------------------------------------------------------------------------------------
@@ -55,6 +77,7 @@ function ElderWatch:OnDocLoaded()
 	
 	Apollo.RegisterEventHandler("PublicEventStart", "OnPublicEventStart", self)
 	Apollo.RegisterEventHandler("PublicEventLeave", "OnPublicEventLeave", self)
+	Apollo.RegisterEventHandler("PublicEventEnd", "OnPublicEventEnd", self)
 	Apollo.RegisterEventHandler("VarChange_ZoneName", "OnChangeZoneName", self)
 	
 	Apollo.RegisterTimerHandler("DungeonTimer", "OnDungeonTimerUpdate", self)
@@ -64,6 +87,8 @@ function ElderWatch:OnDocLoaded()
 	self.wndWatch = Apollo.LoadForm(self.xmlDoc, "MainContainer", nil, self)
 	self.wndWatch:Show(false)
 	self:OnPublicEventStart()
+	
+	self.wndWatch:SetAnchorOffsets(unpack(self.location))
 end
 
 -----------------------------------------------------------------------------------------------
@@ -73,7 +98,7 @@ end
 
 -- on SlashCommand "/elderwatch"
 function ElderWatch:OnElderWatchOn()
-
+	self.wndWatch:Invoke()
 end
 
 function ElderWatch:OnPublicEventStart()
@@ -109,6 +134,12 @@ function ElderWatch:OnPublicEventLeave()
 	end
 end
 
+function ElderWatch:OnPublicEventEnd()
+	if self.dungeon then
+		Apollo.StopTimer("DungeonTimer")
+	end
+end
+
 function ElderWatch:OnChangeZoneName(oVar, strNewZone)
 	self.wndWatch:FindChild("InstanceName"):SetText(strNewZone)
 end
@@ -136,3 +167,11 @@ end
 -----------------------------------------------------------------------------------------------
 ElderWatchInst = ElderWatch:new()
 ElderWatchInst:Init()
+
+---------------------------------------------------------------------------------------------------
+-- MainContainer Functions
+---------------------------------------------------------------------------------------------------
+function ElderWatch:OnToggleDetails( wndHandler, wndControl, eMouseButton )
+	self.wndWatch:Close()
+end
+
